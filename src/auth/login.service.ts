@@ -30,7 +30,7 @@ export async function loginService(email: string, password: string) {
     throw new Error("INVALID_CREDENTIALS");
   }
 
-  const jwtSecret = "123456"//JWT secret
+  const jwtSecret = process.env.JWT_SECRET//JWT secret
 
   if (!jwtSecret) {
     throw new Error("JWT_SECRET_NOT_FOUND");
