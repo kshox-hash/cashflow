@@ -25,6 +25,11 @@ interface GetMonthlySummaryParams {
   months?: number;
 }
 
+interface GetMovementsParams {
+  limit?: number;
+  cursor?: string;
+}
+
 interface Company {
   id: string;
   name: string;
@@ -42,6 +47,12 @@ interface Movement {
   amount: number;
   sourceType: string;
   status: string;
+}
+
+interface PaginatedMovements {
+  data: Movement[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
 interface MonthlySummaryItem {
@@ -221,7 +232,70 @@ export class CashFlowService {
     }
   }
 
-  static async getMovements(companyId: string): Promise<Movement[]> {
+  static async getMovements(
+    companyId: string,
+    params: GetMovementsParams = {}
+  ): Promise<PaginatedMovements> {
+    await this.getCompany(companyId);
+
+    const safeLimit = Math.min(
+      Math.max(Number(params.limit ?? 20), 1),
+      50
+    );
+
+    const queryParams: unknown[] = [companyId, safeLimit + 1];
+
+    let cursorCondition = "";
+
+    if (params.cursor) {
+      queryParams.push(params.cursor);
+
+      cursorCondition = `
+        AND movement_date < (
+          SELECT movement_date
+          FROM cash_flow_movements
+          WHERE id = $3
+            AND company_id = $1
+        )
+      `;
+    }
+
+    const result = await DB.getPool().query(
+      `
+      SELECT
+        id,
+        TO_CHAR(movement_date, 'YYYY-MM-DD') AS date,
+        description,
+        direction,
+        category,
+        amount::float AS amount,
+        source_type AS "sourceType",
+        status
+      FROM cash_flow_movements
+      WHERE company_id = $1
+      ${cursorCondition}
+      ORDER BY movement_date DESC
+      LIMIT $2
+      `,
+      queryParams
+    );
+
+    const rows = result.rows as Movement[];
+
+    const hasMore = rows.length > safeLimit;
+    const data = hasMore ? rows.slice(0, safeLimit) : rows;
+
+    const nextCursor =
+      hasMore && data.length > 0 ? data[data.length - 1].id : null;
+
+    return {
+      data,
+      nextCursor,
+      hasMore,
+    };
+  }
+
+  static async getAllMovements(companyId: string): Promise<Movement[]> {
     await this.getCompany(companyId);
 
     const result = await DB.getPool().query(
@@ -251,7 +325,7 @@ export class CashFlowService {
   ) {
     const company = await this.getCompany(companyId);
 
-    const movements = await this.getMovements(companyId);
+    const movements = await this.getAllMovements(companyId);
 
     const periods = generatePeriods(params.startDate, params.months ?? 12);
 
