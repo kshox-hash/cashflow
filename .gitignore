@@ -1,2 +1,6 @@
 node_modules
+dist
+
+# Variables de entorno — nunca commitear secretos
 .env
+**/.env

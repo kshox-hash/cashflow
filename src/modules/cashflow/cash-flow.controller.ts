@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { CashFlowService } from "./cash-flow.service";
 
 function getSingleQueryParam(value: unknown): string | undefined {
@@ -8,13 +8,11 @@ function getSingleQueryParam(value: unknown): string | undefined {
 }
 
 export class CashFlowController {
-  static async getSummary(req: Request, res: Response) {
+  static async getSummary(req: Request, res: Response, next: NextFunction) {
     try {
       const companyId = req.user!.companyId;
-
       const startDate = getSingleQueryParam(req.query.startDate);
       const monthsParam = getSingleQueryParam(req.query.months);
-
       const months = monthsParam ? Number(monthsParam) : 12;
 
       const result = await CashFlowService.getMonthlySummary(companyId, {
@@ -24,22 +22,15 @@ export class CashFlowController {
 
       return res.json(result);
     } catch (error) {
-      return res.status(500).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Error obteniendo resumen",
-      });
+      return next(error);
     }
   }
 
-  static async getMovements(req: Request, res: Response) {
+  static async getMovements(req: Request, res: Response, next: NextFunction) {
     try {
       const companyId = req.user!.companyId;
-
       const limitParam = getSingleQueryParam(req.query.limit);
       const cursor = getSingleQueryParam(req.query.cursor);
-
       const limit = limitParam ? Number(limitParam) : 20;
 
       const result = await CashFlowService.getMovements(companyId, {
@@ -49,16 +40,11 @@ export class CashFlowController {
 
       return res.json(result);
     } catch (error) {
-      return res.status(500).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Error obteniendo movimientos",
-      });
+      return next(error);
     }
   }
 
-  static async createMovement(req: Request, res: Response) {
+  static async createMovement(req: Request, res: Response, next: NextFunction) {
     try {
       const companyId = req.user!.companyId;
 
@@ -69,43 +55,20 @@ export class CashFlowController {
 
       return res.status(201).json(result);
     } catch (error) {
-      return res.status(400).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Error creando movimiento",
-      });
+      return next(error);
     }
   }
 
-  static async deleteMovement(req: Request, res: Response) {
+  static async deleteMovement(req: Request, res: Response, next: NextFunction) {
     try {
       const companyId = req.user!.companyId;
-      const idParam = req.params.id;
+      const id = req.params.id as string;
 
-        if (Array.isArray(idParam)) {
-          throw new Error("ID inválido");
-        }
+      await CashFlowService.deleteMovement(companyId, id);
 
-        if (!idParam) {
-          throw new Error("ID requerido");
-        }
-
-        await CashFlowService.deleteMovement(
-          companyId,
-          idParam
-        );
-
-      return res.json({
-        ok: true,
-      });
+      return res.json({ ok: true });
     } catch (error) {
-      return res.status(400).json({
-        message:
-          error instanceof Error
-            ? error.message
-            : "Error eliminando movimiento",
-      });
+      return next(error);
     }
   }
 }

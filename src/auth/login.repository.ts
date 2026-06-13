@@ -1,6 +1,6 @@
 import DB from "../db/db-configuration";
 
-export async function findUserByEmailRepository(email: String) {
+export async function findUserByEmailRepository(email: string) {
   try {
     const result = await DB.getPool().query(
       `

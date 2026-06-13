@@ -1,45 +1,41 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import dotevn from "dotenv";
 
 import {
   findUserByEmailRepository,
   updateLastLoginRepository,
 } from "./login.repository";
-
-
-dotevn.config();
+import { AppError } from "../core/errors/app-error";
 
 export async function loginService(email: string, password: string) {
   const user = await findUserByEmailRepository(email);
 
   if (!user) {
-    throw new Error("INVALID_CREDENTIALS");
+    throw new AppError("Credenciales inválidas", 401, "INVALID_CREDENTIALS");
   }
 
   if (!user.is_active) {
-    throw new Error("USER_DISABLED");
+    throw new AppError("Usuario desactivado", 403, "USER_DISABLED");
   }
 
-  const passwordValid = await bcrypt.compare(
-    password,
-    user.password_hash
-  );
+  const passwordValid = await bcrypt.compare(password, user.password_hash);
 
   if (!passwordValid) {
-    throw new Error("INVALID_CREDENTIALS");
+    throw new AppError("Credenciales inválidas", 401, "INVALID_CREDENTIALS");
   }
 
-  const jwtSecret = process.env.JWT_SECRET//JWT secret
+  const jwtSecret = process.env.JWT_SECRET;
 
   if (!jwtSecret) {
-    throw new Error("JWT_SECRET_NOT_FOUND");
+    throw new AppError(
+      "Configuración del servidor incompleta",
+      500,
+      "JWT_SECRET_NOT_FOUND"
+    );
   }
 
+  await updateLastLoginRepository(user.id);
 
-   await updateLastLoginRepository(user.id);
-
-   
   const token = jwt.sign(
     {
       id: user.id,
@@ -47,11 +43,9 @@ export async function loginService(email: string, password: string) {
       companyId: user.company_id,
       role: user.role,
     },
-
     jwtSecret,
+    { expiresIn: "8h" }
   );
-
- 
 
   return {
     token,
@@ -63,4 +57,3 @@ export async function loginService(email: string, password: string) {
     },
   };
 }
-
